@@ -3,13 +3,13 @@ import requests
 import base64
 from datetime import datetime
 
-# 1. Configurazione Pagina (Deve essere la prima riga assoluta)
+# 1. Configurazione Pagina
 st.set_page_config(page_title="AI Business Dashboard", layout="wide")
 
-# 2. CONFIGURAZIONE LINK GOOGLE (Sostituisci tra le virgolette col tuo URL /exec)
+# 2. CONFIGURAZIONE LINK GOOGLE (Incolla il tuo URL /exec tra le virgolette)
 WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_DI_APPS_SCRIPT"
 
-# 3. LISTA UTENTI AUTORIZZATI (Username: Password)
+# 3. LISTA UTENTI AUTORIZZATI
 UTENTI_AUTORIZZATI = {
     "admin": "12345",
     "ufficio": "2025",
