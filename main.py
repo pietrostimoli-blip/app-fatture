@@ -7,14 +7,13 @@ try:
     API_KEY = st.secrets["API_KEY"]
     genai.configure(api_key=API_KEY)
 except Exception:
-    st.error("Errore: API_KEY non configurata nei Secrets di Streamlit!")
+    st.error("Errore: API_KEY non configurata nei Secrets!")
     st.stop()
 
 # 2. GESTIONE ACCESSI
 UTENTI = {
     "admin": "tuapassword",
-    "negozio1": "pass123",
-    "cliente_test": "test2025"
+    "negozio1": "pass123"
 }
 
 st.set_page_config(page_title="Scanner Professionale AI", layout="centered")
@@ -41,27 +40,31 @@ if not st.session_state['autenticato']:
     st.stop()
 
 # --- APP LIVE ---
-st.title("📑 Scanner Fatture Professionale")
-st.write(f"Utente attivo: **{st.session_state['user_attuale'].capitalize()}**")
+st.title("📑 Scanner Fatture & PDF")
+st.write(f"Utente: **{st.session_state['user_attuale'].capitalize()}**")
 
-file = st.file_uploader("Carica o scatta una foto", type=['jpg', 'jpeg', 'png'])
+# AGGIUNTO 'pdf' qui sotto
+file = st.file_uploader("Carica Fattura (Immagine o PDF)", type=['jpg', 'jpeg', 'png', 'pdf'])
 
 if file:
-    img = Image.open(file)
-    st.image(img, caption="Documento pronto", use_container_width=True)
+    st.success(f"File '{file.name}' caricato con successo!")
     
     if st.button("🔍 ANALIZZA DOCUMENTO"):
         try:
-            with st.spinner("L'intelligenza artificiale sta leggendo..."):
+            with st.spinner("L'intelligenza artificiale sta leggendo il file..."):
                 model = genai.GenerativeModel('gemini-1.5-flash')
-                prompt = "Analizza questa immagine. Estrai e scrivi solo: Fornitore, Data e Totale."
-                response = model.generate_content([prompt, img])
                 
-                if response:
-                    st.success("✅ Analisi completata!")
-                    st.subheader("Dati Estratti:")
-                    st.write(response.text)
-                    st.balloons()
+                # Se è un'immagine la apriamo normalmente
+                if file.type != "application/pdf":
+                    img = Image.open(file)
+                    response = model.generate_content(["Estrai: Fornitore, Data e Totale.", img])
+                else:
+                    # Se è un PDF lo inviamo come dati raw (Gemini 1.5 Flash lo supporta)
+                    pdf_parts = [{"mime_type": "application/pdf", "data": file.read()}]
+                    response = model.generate_content(["Estrai: Fornitore, Data e Totale da questo PDF.", pdf_parts[0]])
+                
+                st.subheader("Dati Estratti:")
+                st.write(response.text)
+                st.balloons()
         except Exception as e:
             st.error(f"Errore tecnico: {e}")
-            st.info("Se l'errore persiste, aggiorna la tua API KEY nei Secrets.")
