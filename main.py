@@ -4,77 +4,90 @@ import base64
 from datetime import datetime
 
 # 1. Configurazione Pagina
-st.set_page_config(page_title="AI Business Dashboard", layout="wide")
+st.set_page_config(page_title="DEBUG AI Dashboard", layout="wide")
 
-# 2. CONFIGURAZIONE LINK GOOGLE (Recuperalo da Apps Script)
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwceekBx0hRgmfnR5agS7oM81C4OdxY3n3ZxQmv0P-R7v1KAdCnD68TK7ODc-QdPSCo/exec"
+# 2. Configurazione Link (Assicurati che ci siano le virgolette e l'URL intero)
+WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_EXEC"
 
-# 3. LISTA UTENTI AUTORIZZATI
-UTENTI_AUTORIZZATI = {
-    "admin": "12345",
-    "ufficio": "2025"
-}
+# 3. Utenti
+UTENTI = {"admin": "12345", "negozio1": "pass1"}
 
-# --- SISTEMA DI LOGIN ---
-if 'auth' not in st.session_state:
-    st.session_state['auth'] = False
-
+# --- LOGIN ---
+if 'auth' not in st.session_state: st.session_state['auth'] = False
 if not st.session_state['auth']:
-    st.title("🔐 Accesso Gestionale")
-    user_in = st.text_input("Username")
-    pass_in = st.text_input("Password", type="password")
+    st.title("🔐 Login")
+    u = st.text_input("Username")
+    p = st.text_input("Password", type="password")
     if st.button("ACCEDI"):
-        if user_in in UTENTI_AUTORIZZATI and UTENTI_AUTORIZZATI[user_in] == pass_in:
+        if u in UTENTI and UTENTI[u] == p:
             st.session_state['auth'] = True
-            st.session_state['user_attivo'] = user_in
+            st.session_state['user'] = u
             st.rerun()
     st.stop()
 
-# --- FUNZIONE ANALISI AI ---
-def analizza_documento(file, tipo_doc):
+# --- INTERFACCIA ---
+st.title(f"📊 Utente Attivo: {st.session_state['user']}")
+
+up = st.file_uploader("Carica un file per testare", type=['pdf', 'jpg', 'png', 'xml'])
+
+if up and st.button("🔍 ANALIZZA ORA"):
+    st.warning("🚀 Fase 1: Tasto premuto correttamente!") # Segnale 1
+    
     try:
+        # Controllo Secrets
         if "API_KEY" not in st.secrets:
-            st.error("Manca API_KEY nei Secrets!")
-            return None
+            st.error("❌ ERRORE: La API_KEY non è configurata nei Secrets di Streamlit!")
+            st.stop()
+        
+        st.info("🤖 Fase 2: API_KEY trovata. Invio all'AI...") # Segnale 2
         
         API_KEY = st.secrets["API_KEY"]
-        file_bytes = file.read()
-        prompt = f"Analizza fattura di {tipo_doc}. Estrai: 1.Soggetto, 2.DataDoc, 3.Totale, 4.Imponibile, 5.IVA, 6.Scadenza, 7.Articoli. Rispondi solo con i valori separati da virgola."
+        file_bytes = up.read()
         
-        if file.name.lower().endswith('.xml'):
-            payload = {"contents": [{"parts": [{"text": f"{prompt}\n\n{file_bytes.decode('utf-8')}"}]}]}
+        # Preparazione prompt
+        prompt = "Estrai Soggetto, Data, Totale, Imponibile, IVA, Scadenza, Articoli. Rispondi SOLO con i valori separati da virgola."
+        
+        if up.name.lower().endswith('.xml'):
+            testo_xml = file_bytes.decode('utf-8', errors='ignore')
+            payload_ai = {"contents": [{"parts": [{"text": f"{prompt}\n\n{testo_xml}"}]}]}
         else:
-            file_b64 = base64.b64encode(file_bytes).decode("utf-8")
-            payload = {"contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": file.type, "data": file_b64}}]}]}
+            b64 = base64.b64encode(file_bytes).decode()
+            payload_ai = {"contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": up.type, "data": b64}}]}]}
         
-        res = requests.post(f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}", json=payload).json()
-        if 'candidates' in res:
-            return [item.strip() for item in res['candidates'][0]['content']['parts'][0]['text'].split(',')]
-        return None
+        # Chiamata AI
+        url_ai = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        res_ai = requests.post(url_ai, json=payload_ai).json()
+        
+        if 'candidates' in res_ai:
+            st.success("✨ Fase 3: L'AI ha risposto!") # Segnale 3
+            testo = res_ai['candidates'][0]['content']['parts'][0]['text']
+            dati = [i.strip() for i in testo.split(',')]
+            
+            st.write("Dati estratti:", dati)
+            
+            # Invio a Google
+            st.info(f"📤 Fase 4: Invio al foglio di {st.session_state['user']}...") # Segnale 4
+            
+            payload_google = {
+                "utente": st.session_state['user'],
+                "tipo": "ACQUISTO",
+                "soggetto": dati[0],
+                "data_doc": dati[1],
+                "totale": dati[2],
+                "imponibile": dati[3],
+                "iva": dati[4],
+                "note": dati[6] if len(dati) > 6 else "N/D"
+            }
+            
+            r_google = requests.post(WEBHOOK_URL, json=payload_google)
+            
+            if r_google.status_code == 200:
+                st.success("✅ OPERAZIONE COMPLETATA! Controlla il foglio Google.")
+                st.balloons()
+            else:
+                st.error(f"❌ Errore Google (Fase 4): {r_google.status_code}")
+        else:
+            st.error(f"❌ Errore AI (Fase 3): {res_ai}")
+            
     except Exception as e:
-        st.error(f"Errore AI: {e}")
-        return None
-
-# --- INTERFACCIA ---
-st.title(f"📊 Dashboard: {st.session_state['user_attivo']}")
-tab1, tab2 = st.tabs(["📥 ACQUISTI", "📤 VENDITE"])
-
-with tab1:
-    file_acq = st.file_uploader("Carica Acquisto", type=['pdf', 'jpg', 'png', 'xml'], key="acq")
-    if file_acq and st.button("🔍 ANALIZZA ACQUISTO"):
-        d = analizza_documento(file_acq, "ACQUISTO")
-        if d:
-            p = {"tipo": "ACQUISTO", "soggetto": d[0], "data_doc": d[1], "totale": d[2], "imponibile": d[3], "iva": d[4], "scadenza": d[5], "note": d[6]}
-            requests.post(WEBHOOK_URL, json=p)
-            st.success("Archiviato!")
-
-with tab2:
-    file_ven = st.file_uploader("Carica Vendita", type=['pdf', 'jpg', 'png', 'xml'], key="ven")
-    if file_ven and st.button("🔍 ANALIZZA VENDITA"):
-        d = analizza_documento(file_ven, "VENDITA")
-        if d:
-            p = {"tipo": "VENDITA", "soggetto": d[0], "data_doc": d[1], "totale": d[2], "imponibile": d[3], "iva": d[4], "scadenza": d[5], "note": d[6]}
-            requests.post(WEBHOOK_URL, json=p)
-            st.success("Archiviato!")
-
-
+        st.error(f"❌ ERRORE CRITICO: {e}")
