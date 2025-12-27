@@ -2,61 +2,71 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 
-# 1. Configurazione Sicura (NON TOCCARE)
+# 1. CONFIGURAZIONE SICURA (Dati dai Secrets di Streamlit)
 try:
-    # Cerchiamo le chiavi nei Secrets di Streamlit
-    CHIAVE_AI = st.secrets["API_KEY"]
-    genai.configure(api_key=CHIAVE_AI)
+    API_KEY = st.secrets["API_KEY"]
+    # Usiamo il modello corretto con il prefisso 'models/' per evitare il 404
+    genai.configure(api_key=API_KEY)
 except Exception:
-    st.error("Errore critico: API_KEY non trovata nei Secrets di Streamlit!")
+    st.error("Errore: API_KEY non configurata nei Secrets di Streamlit!")
     st.stop()
 
-# 2. Gestione Accessi (Username: Password)
-# PUOI AGGIUNGERE O TOGLIERE UTENTI QUI SOTTO
+# 2. GESTIONE ACCESSI (Aggiungi qui i tuoi clienti)
 UTENTI = {
     "admin": "tuapassword",
-    "negozio1": "pass123"
+    "negozio1": "pass123",
+    "cliente_test": "test2025"
 }
 
-st.set_page_config(page_title="Scanner Professionale", layout="centered")
+st.set_page_config(page_title="Scanner Professionale AI", layout="centered")
 
-# --- BLOCCO DI SICUREZZA ---
+# Inizializzazione sessione di login
 if 'autenticato' not in st.session_state:
     st.session_state['autenticato'] = False
 
-# Sidebar per il Login
-st.sidebar.title("🔐 Accesso Riservato")
+# --- SIDEBAR LOGIN ---
+st.sidebar.title("🔐 Area Riservata")
 user = st.sidebar.text_input("Utente")
 password = st.sidebar.text_input("Password", type="password")
 
-if st.sidebar.button("Entra"):
+if st.sidebar.button("Accedi"):
     if user in UTENTI and UTENTI[user] == password:
         st.session_state['autenticato'] = True
+        st.session_state['user_attuale'] = user
+        st.rerun()
     else:
-        st.sidebar.error("Credenziali errate")
+        st.sidebar.error("Credenziali non valide")
 
-# Se NON è autenticato, l'app si ferma qui e non mostra NULLA
+# --- CONTROLLO ACCESSO ---
 if not st.session_state['autenticato']:
-    st.title("📲 Benvenuto")
-    st.info("Inserisci le credenziali nella barra a sinistra per accedere allo scanner.")
+    st.title("📲 Portale Documenti AI")
+    st.info("Inserisci le tue credenziali a sinistra per iniziare.")
     st.stop()
 
-# --- DA QUI IN POI VEDE SOLO CHI HA LA PASSWORD ---
+# --- APP LIVE (Visibile solo dopo il Login) ---
 st.title("📑 Scanner Fatture Professionale")
+st.write(f"Connesso come: **{st.session_state['user_attuale'].capitalize()}**")
 
-file = st.file_uploader("Scatta o carica una foto", type=['jpg', 'jpeg', 'png'])
+file = st.file_uploader("Carica o scatta una foto", type=['jpg', 'jpeg', 'png'])
 
 if file:
     img = Image.open(file)
-    st.image(img, width=400)
+    st.image(img, caption="Documento caricato", use_container_width=True)
     
     if st.button("🔍 ANALIZZA DOCUMENTO"):
         try:
-            with st.spinner("L'intelligenza artificiale sta leggendo..."):
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                # Prompt pulito per evitare errori
-                response = model.generate_content(["Estrai fornitore, data e totale", img])
-                st.success("Analisi Completata!")
+            with st.spinner("L'intelligenza artificiale sta leggendo i dati..."):
+                # Specifichiamo il modello nel formato corretto
+                model = genai.GenerativeModel('models/gemini-1.5-flash')
+                
+                prompt = "Analizza questa immagine e restituisci: Fornitore, Data e Totale in modo chiaro."
+                response = model.generate_content([prompt, img])
+                
+                st.success("✅ Analisi completata!")
+                st.subheader("Dati Estratti:")
                 st.write(response.text)
+                
+                st.balloons()
         except Exception as e:
             st.error(f"Errore durante l'analisi: {e}")
+            st.info("Verifica che la tua API KEY sia attiva e corretta.")
