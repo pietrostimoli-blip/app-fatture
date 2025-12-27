@@ -4,18 +4,25 @@ import base64
 from datetime import datetime
 
 # 1. Configurazione Pagina
-st.set_page_config(page_title="DEBUG AI Dashboard", layout="wide")
+st.set_page_config(page_title="Gemini Business AI", layout="wide")
 
-# 2. Configurazione Link (Assicurati che ci siano le virgolette e l'URL intero)
-WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_EXEC"
+# 2. CONFIGURAZIONE LINK GOOGLE (Metti il tuo URL /exec qui)
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwceekBx0hRgmfnR5agS7oM81C4OdxY3n3ZxQmv0P-R7v1KAdCnD68TK7ODc-QdPSCo/exec
+"
 
-# 3. Utenti
-UTENTI = {"admin": "12345", "negozio1": "pass1"}
+# 3. UTENTI E PASSWORD (Ogni utente avrà il suo foglio nel database)
+UTENTI = {
+    "admin": "12345",
+    "negozio1": "pass1",
+    "negozio2": "pass2"
+}
 
-# --- LOGIN ---
-if 'auth' not in st.session_state: st.session_state['auth'] = False
+# --- SISTEMA DI LOGIN ---
+if 'auth' not in st.session_state:
+    st.session_state['auth'] = False
+
 if not st.session_state['auth']:
-    st.title("🔐 Login")
+    st.title("🔐 Accesso Gestionale AI")
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
     if st.button("ACCEDI"):
@@ -23,71 +30,86 @@ if not st.session_state['auth']:
             st.session_state['auth'] = True
             st.session_state['user'] = u
             st.rerun()
+        else:
+            st.error("Credenziali non valide")
     st.stop()
 
-# --- INTERFACCIA ---
-st.title(f"📊 Utente Attivo: {st.session_state['user']}")
-
-up = st.file_uploader("Carica un file per testare", type=['pdf', 'jpg', 'png', 'xml'])
-
-if up and st.button("🔍 ANALIZZA ORA"):
-    st.warning("🚀 Fase 1: Tasto premuto correttamente!") # Segnale 1
-    
+# --- FUNZIONE ANALISI GEMINI (v1beta) ---
+def analizza_con_gemini(file, tipo_doc):
     try:
-        # Controllo Secrets
         if "API_KEY" not in st.secrets:
-            st.error("❌ ERRORE: La API_KEY non è configurata nei Secrets di Streamlit!")
-            st.stop()
-        
-        st.info("🤖 Fase 2: API_KEY trovata. Invio all'AI...") # Segnale 2
+            st.error("Manca la API_KEY nei Secrets di Streamlit!")
+            return None
         
         API_KEY = st.secrets["API_KEY"]
-        file_bytes = up.read()
+        file_bytes = file.read()
         
-        # Preparazione prompt
-        prompt = "Estrai Soggetto, Data, Totale, Imponibile, IVA, Scadenza, Articoli. Rispondi SOLO con i valori separati da virgola."
-        
-        if up.name.lower().endswith('.xml'):
+        # Prompt per l'estrazione intelligente
+        prompt = f"Sei un assistente contabile. Analizza questa fattura di {tipo_doc}. Estrai i seguenti dati separati da virgola: 1.Soggetto (Fornitore/Cliente), 2.DataDocumento, 3.Totale, 4.Imponibile, 5.IVA, 6.Scadenza, 7.Articoli. Rispondi SOLO con i valori."
+
+        # Preparazione dati per Gemini 1.5 Flash
+        if file.name.lower().endswith('.xml'):
             testo_xml = file_bytes.decode('utf-8', errors='ignore')
-            payload_ai = {"contents": [{"parts": [{"text": f"{prompt}\n\n{testo_xml}"}]}]}
+            payload = {"contents": [{"parts": [{"text": f"{prompt}\n\n{testo_xml}"}]}]}
         else:
-            b64 = base64.b64encode(file_bytes).decode()
-            payload_ai = {"contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": up.type, "data": b64}}]}]}
+            b64_file = base64.b64encode(file_bytes).decode()
+            payload = {"contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": file.type, "data": b64_file}}]}]}
+
+        # Endpoint aggiornato a v1beta per supporto totale a Gemini 1.5 Flash
+        url_api = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
         
-        # Chiamata AI
-        url_ai = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-        res_ai = requests.post(url_ai, json=payload_ai).json()
+        res = requests.post(url_api, json=payload).json()
         
-        if 'candidates' in res_ai:
-            st.success("✨ Fase 3: L'AI ha risposto!") # Segnale 3
-            testo = res_ai['candidates'][0]['content']['parts'][0]['text']
-            dati = [i.strip() for i in testo.split(',')]
-            
-            st.write("Dati estratti:", dati)
-            
-            # Invio a Google
-            st.info(f"📤 Fase 4: Invio al foglio di {st.session_state['user']}...") # Segnale 4
-            
-            payload_google = {
-                "utente": st.session_state['user'],
-                "tipo": "ACQUISTO",
-                "soggetto": dati[0],
-                "data_doc": dati[1],
-                "totale": dati[2],
-                "imponibile": dati[3],
-                "iva": dati[4],
-                "note": dati[6] if len(dati) > 6 else "N/D"
-            }
-            
-            r_google = requests.post(WEBHOOK_URL, json=payload_google)
-            
-            if r_google.status_code == 200:
-                st.success("✅ OPERAZIONE COMPLETATA! Controlla il foglio Google.")
-                st.balloons()
-            else:
-                st.error(f"❌ Errore Google (Fase 4): {r_google.status_code}")
+        if 'candidates' in res:
+            testo_estratto = res['candidates'][0]['content']['parts'][0]['text']
+            dati = [i.strip() for i in testo_estratto.split(',')]
+            while len(dati) < 7: dati.append("N/D")
+            return dati
         else:
-            st.error(f"❌ Errore AI (Fase 3): {res_ai}")
-            
+            st.error(f"Errore risposta Gemini: {res}")
+            return None
     except Exception as e:
-        st.error(f"❌ ERRORE CRITICO: {e}")
+        st.error(f"Errore tecnico: {e}")
+        return None
+
+# --- INTERFACCIA PRINCIPALE ---
+st.title(f"📊 Dashboard: {st.session_state['user']}")
+st.write(f"I dati verranno salvati nel foglio dedicato: **{st.session_state['user']}**")
+
+tab1, tab2 = st.tabs(["📥 ACQUISTI", "📤 VENDITE"])
+
+with tab1:
+    up_acq = st.file_uploader("Carica Fattura Acquisto", type=['pdf', 'jpg', 'png', 'xml'], key="u_acq")
+    if up_acq and st.button("🔍 ANALIZZA E ARCHIVIA ACQUISTO"):
+        with st.spinner("Gemini sta analizzando il documento..."):
+            d = analizza_con_gemini(up_acq, "ACQUISTO")
+            if d:
+                payload = {
+                    "utente": st.session_state['user'],
+                    "tipo": "ACQUISTO",
+                    "soggetto": d[0], "data_doc": d[1], "totale": d[2],
+                    "imponibile": d[3], "iva": d[4], "note": f"Articoli: {d[6]}"
+                }
+                if requests.post(WEBHOOK_URL, json=payload).status_code == 200:
+                    st.success(f"Archiviato con successo nel database {st.session_state['user']}!")
+                    st.balloons()
+
+with tab2:
+    up_ven = st.file_uploader("Carica Fattura Vendita", type=['pdf', 'jpg', 'png', 'xml'], key="u_ven")
+    if up_ven and st.button("🔍 ANALIZZA E ARCHIVIA VENDITA"):
+        with st.spinner("Gemini sta analizzando la vendita..."):
+            d = analizza_con_gemini(up_ven, "VENDITA")
+            if d:
+                payload = {
+                    "utente": st.session_state['user'],
+                    "tipo": "VENDITA",
+                    "soggetto": d[0], "data_doc": d[1], "totale": d[2],
+                    "imponibile": d[3], "iva": d[4], "note": f"Articoli: {d[6]}"
+                }
+                if requests.post(WEBHOOK_URL, json=payload).status_code == 200:
+                    st.success(f"Vendita registrata nel database {st.session_state['user']}!")
+                    st.balloons()
+
+if st.sidebar.button("🚪 Logout"):
+    st.session_state['auth'] = False
+    st.rerun()
