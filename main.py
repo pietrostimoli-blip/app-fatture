@@ -7,7 +7,7 @@ from datetime import datetime
 st.set_page_config(page_title="AI Business Dashboard", layout="wide")
 
 # 2. CONFIGURAZIONE LINK GOOGLE (Recuperalo da Apps Script)
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzr-llGsLJ2PaWNcOxjb0wBIXGjFvPIRw_YZrJ49S5OrUEV-Mbuw3cFykriUIHVKOUE/exec"
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwceekBx0hRgmfnR5agS7oM81C4OdxY3n3ZxQmv0P-R7v1KAdCnD68TK7ODc-QdPSCo/exec"
 
 # 3. LISTA UTENTI AUTORIZZATI
 UTENTI_AUTORIZZATI = {
@@ -76,4 +76,5 @@ with tab2:
             p = {"tipo": "VENDITA", "soggetto": d[0], "data_doc": d[1], "totale": d[2], "imponibile": d[3], "iva": d[4], "scadenza": d[5], "note": d[6]}
             requests.post(WEBHOOK_URL, json=p)
             st.success("Archiviato!")
+
 
