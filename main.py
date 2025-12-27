@@ -6,7 +6,7 @@ from datetime import datetime
 # 1. Configurazione Pagina (Deve essere la prima riga assoluta)
 st.set_page_config(page_title="AI Business Dashboard", layout="wide")
 
-# 2. CONFIGURAZIONE LINK GOOGLE (Incolla qui il tuo URL /exec)
+# 2. CONFIGURAZIONE LINK GOOGLE (Sostituisci tra le virgolette col tuo URL /exec)
 WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_DI_APPS_SCRIPT"
 
 # 3. LISTA UTENTI AUTORIZZATI
@@ -73,7 +73,7 @@ with tab1:
                 
                 res = requests.post(f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}", json=payload).json()
                 d = [item.strip() for item in res['candidates'][0]['content']['parts'][0]['text'].split(',')]
-                while len(d) < 7: d.append("N/D")
+                while len(d) < 7: d.append("0")
 
                 payload_sheets = {
                     "tipo": "ACQUISTO",
