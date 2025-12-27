@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import base64
 
-# CONFIGURAZIONE CHIAVE
+# CONFIGURAZIONE
 if "API_KEY" in st.secrets:
     API_KEY = st.secrets["API_KEY"]
 else:
@@ -26,43 +26,54 @@ if not st.session_state['auth']:
     st.stop()
 
 # APP
-st.title("📑 Scanner Multi-Tentativo")
+st.title("📑 Scanner Intelligente (Auto-Fix)")
 file = st.file_uploader("Carica Documento", type=['pdf', 'jpg', 'jpeg', 'png'])
 
 if file and st.button("🔍 ANALIZZA ORA"):
     try:
-        with st.spinner("L'AI sta cercando il canale giusto..."):
+        with st.spinner("Ricerca modello compatibile con la tua chiave..."):
+            # 1. CHIEDIAMO A GOOGLE QUALI MODELLI PUOI USARE
+            list_url = f"https://generativelanguage.googleapis.com/v1/models?key={API_KEY}"
+            list_res = requests.get(list_url).json()
+            
+            modelli_validi = []
+            if 'models' in list_res:
+                for m in list_res['models']:
+                    # Cerchiamo modelli che supportano la generazione di contenuti
+                    if 'generateContent' in m.get('supportedGenerationMethods', []):
+                        modelli_validi.append(m['name'])
+            
+            if not modelli_validi:
+                st.error("La tua chiave API non ha modelli abilitati. Controlla Google AI Studio.")
+                st.stop()
+
+            # 2. PROVIAMO IL PRIMO MODELLO DISPONIBILE
+            target_model = modelli_validi[0] 
+            st.info(f"Sto usando il modello: {target_model}")
+
             file_data = base64.b64encode(file.read()).decode("utf-8")
             mime_type = "application/pdf" if file.type == "application/pdf" else "image/jpeg"
             
-            # LISTA MODELLI DA PROVARE
-            modelli_da_provare = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro-vision"]
-            successo = False
-
-            for m in modelli_da_provare:
-                url = f"https://generativelanguage.googleapis.com/v1/models/{m}:generateContent?key={API_KEY}"
-                payload = {
-                    "contents": [{
-                        "parts": [
-                            {"text": "Estrai Fornitore, Data e Totale da questo documento."},
-                            {"inline_data": {"mime_type": mime_type, "data": file_data}}
-                        ]
-                    }]
-                }
-                
-                response = requests.post(url, json=payload)
-                result = response.json()
-                
-                if response.status_code == 200:
-                    testo = result['candidates'][0]['content']['parts'][0]['text']
-                    st.success(f"Analisi Completata con successo (Modello: {m})!")
-                    st.write(testo)
-                    st.balloons()
-                    successo = True
-                    break  # Esci dal ciclo se uno funziona
+            url = f"https://generativelanguage.googleapis.com/v1/{target_model}:generateContent?key={API_KEY}"
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": "Estrai Fornitore, Data e Totale da questo documento."},
+                        {"inline_data": {"mime_type": mime_type, "data": file_data}}
+                    ]
+                }]
+            }
             
-            if not successo:
-                st.error("Nessun modello Google è disponibile per la tua chiave. Verifica di aver creato la chiave in un progetto 'Pay-as-you-go' o riprova tra pochi minuti.")
+            response = requests.post(url, json=payload)
+            result = response.json()
+            
+            if response.status_code == 200:
+                testo = result['candidates'][0]['content']['parts'][0]['text']
+                st.success("Analisi Completata!")
+                st.write(testo)
+                st.balloons()
+            else:
+                st.error(f"Errore specifico: {result['error']['message']}")
                 
     except Exception as e:
-        st.error(f"Errore: {e}")
+        st.error(f"Errore di sistema: {e}")
