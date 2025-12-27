@@ -6,7 +6,7 @@ from datetime import datetime
 # 1. Configurazione Pagina
 st.set_page_config(page_title="AI Business Dashboard", layout="wide")
 
-# 2. CONFIGURAZIONE LINK GOOGLE (Incolla il tuo URL /exec tra le virgolette)
+# 2. CONFIGURAZIONE LINK GOOGLE (Sostituisci col tuo URL /exec)
 WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_DI_APPS_SCRIPT"
 
 # 3. LISTA UTENTI AUTORIZZATI
@@ -20,11 +20,8 @@ UTENTI_AUTORIZZATI = {
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117; color: #e6edf3; }
-    .login-card { 
-        background: #161b22; padding: 30px; border-radius: 15px; 
-        border: 1px solid #30363d; margin-top: 50px;
-    }
-    .stButton>button { background-color: #238636; color: white; font-weight: bold; width: 100%; }
+    .login-card { background: #161b22; padding: 30px; border-radius: 15px; border: 1px solid #30363d; margin-top: 50px; }
+    .stButton>button { background-color: #238636; color: white; font-weight: bold; width: 100%; height: 3em; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -49,66 +46,73 @@ if not st.session_state['auth']:
         st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
-# --- INTERFACCIA DOPO IL LOGIN ---
+# --- FUNZIONE ANALISI AI (UNIFICATA) ---
+def analizza_documento(file, tipo_doc):
+    try:
+        API_KEY = st.secrets["API_KEY"]
+        file_bytes = file.read()
+        prompt = f"Analizza questa fattura di {tipo_doc}. Estrai: 1.Soggetto, 2.DataDoc, 3.Totale, 4.Imponibile, 5.IVA, 6.Scadenza, 7.Articoli. Rispondi SOLO con i valori separati da virgola."
+        
+        if file.name.lower().endswith('.xml'):
+            xml_text = file_bytes.decode('utf-8')
+            payload = {"contents": [{"parts": [{"text": f"{prompt}\n\n{xml_text}"}]}]}
+        else:
+            file_b64 = base64.b64encode(file_bytes).decode("utf-8")
+            payload = {"contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": file.type, "data": file_b64}}]}]}
+        
+        res = requests.post(f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}", json=payload).json()
+        
+        if 'candidates' in res:
+            testo = res['candidates'][0]['content']['parts'][0]['text']
+            dati = [item.strip() for item in testo.split(',')]
+            while len(dati) < 7: dati.append("N/D")
+            return dati
+        return None
+    except Exception as e:
+        st.error(f"Errore AI: {e}")
+        return None
+
+# --- INTERFACCIA PRINCIPALE ---
 st.title(f"📊 Dashboard: {st.session_state['user_attivo']}")
+tab1, tab2 = st.tabs(["📥 ACQUISTI", "📤 VENDITE"])
 
-tab1, tab2 = st.tabs(["📥 ACQUISTI (Fornitori)", "📤 VENDITE (Clienti)"])
-
+# --- TAB ACQUISTI ---
 with tab1:
-    st.subheader("Carica Fattura Acquisto")
-    file_acq = st.file_uploader("Scegli file (PDF, JPG, XML)", type=['pdf', 'jpg', 'jpeg', 'png', 'xml'])
-    if file_acq and st.button("🚀 ANALIZZA E ARCHIVIA"):
-        try:
-            with st.spinner("L'AI sta leggendo..."):
-                API_KEY = st.secrets["API_KEY"]
-                file_bytes = file_acq.read()
-                
-                prompt = "Estrai Soggetto, DataDocumento, Totale, Imponibile, IVA, Scadenza, Articoli. Rispondi SOLO con i valori separati da virgola."
-                
-                if file_acq.name.lower().endswith('.xml'):
-                    payload = {"contents": [{"parts": [{"text": f"{prompt}\n{file_bytes.decode('utf-8')}"}]}]}
-                else:
-                    file_b64 = base64.b64encode(file_bytes).decode("utf-8")
-                    payload = {"contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": file_acq.type, "data": file_b64}}]}]}
-                
-                res = requests.post(f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}", json=payload).json()
-                d = [item.strip() for item in res['candidates'][0]['content']['parts'][0]['text'].split(',')]
-                while len(d) < 7: d.append("0")
+    st.subheader("Importa Fattura Acquisto")
+    file_acq = st.file_uploader("Carica PDF, Foto o XML", type=['pdf', 'jpg', 'jpeg', 'png', 'xml'], key="up_acq")
+    if file_acq and st.button("🔍 ANALIZZA ACQUISTO"):
+        d = analizza_documento(file_acq, "ACQUISTO")
+        if d:
+            payload = {"tipo": "ACQUISTO", "soggetto": d[0], "data_doc": d[1], "totale": d[2], "imponibile": d[3], "iva": d[4], "scadenza": d[5], "note": d[6]}
+            if requests.post(WEBHOOK_URL, json=payload).status_code == 200:
+                st.success(f"Acquisto da {d[0]} salvato!")
+                st.balloons()
 
-                payload_sheets = {
-                    "tipo": "ACQUISTO",
-                    "soggetto": d[0],
-                    "data_doc": d[1],
-                    "totale": d[2],
-                    "imponibile": d[3],
-                    "iva": d[4],
-                    "scadenza": d[5],
-                    "note": f"Articoli: {d[6]} | Op: {st.session_state['user_attivo']}"
-                }
-                
-                resp = requests.post(WEBHOOK_URL, json=payload_sheets)
-                if resp.status_code == 200:
-                    st.success(f"Archiviato: {d[0]} ({d[2]}€)")
-                    st.balloons()
-        except Exception as e:
-            st.error(f"Errore: {e}")
-
+# --- TAB VENDITE ---
 with tab2:
-    st.subheader("Registra Fattura Vendita")
-    with st.form("form_v"):
-        c = st.text_input("Nome Cliente")
-        t = st.number_input("Totale Fattura (€)", min_value=0.0)
-        s = st.date_input("Scadenza Pagamento")
-        n = st.text_area("Articoli / Note")
-        if st.form_submit_button("💾 SALVA VENDITA"):
-            imp = t / 1.22
-            p_v = {
-                "tipo": "VENDITA", "soggetto": c, "data_doc": str(datetime.now().date()),
-                "totale": t, "imponibile": round(imp, 2), "iva": round(t-imp, 2),
-                "scadenza": str(s), "note": n
-            }
-            requests.post(WEBHOOK_URL, json=p_v)
-            st.success("Vendita registrata nel Cloud!")
+    st.subheader("Gestione Vendite")
+    scelta = st.radio("Metodo di inserimento:", ["Carica File (AI)", "Inserimento Manuale"])
+    
+    if scelta == "Carica File (AI)":
+        file_ven = st.file_uploader("Carica PDF, Foto o XML di Vendita", type=['pdf', 'jpg', 'jpeg', 'png', 'xml'], key="up_ven")
+        if file_ven and st.button("🔍 ANALIZZA VENDITA"):
+            d = analizza_documento(file_ven, "VENDITA")
+            if d:
+                payload = {"tipo": "VENDITA", "soggetto": d[0], "data_doc": d[1], "totale": d[2], "imponibile": d[3], "iva": d[4], "scadenza": d[5], "note": d[6]}
+                if requests.post(WEBHOOK_URL, json=payload).status_code == 200:
+                    st.success(f"Vendita a {d[0]} salvata!")
+                    st.balloons()
+    else:
+        with st.form("vendita_manuale"):
+            c = st.text_input("Cliente")
+            t = st.number_input("Totale (€)", min_value=0.0)
+            sc = st.date_input("Scadenza")
+            n = st.text_area("Articoli")
+            if st.form_submit_button("💾 SALVA MANUALE"):
+                imp = t / 1.22
+                payload = {"tipo": "VENDITA", "soggetto": c, "data_doc": str(datetime.now().date()), "totale": t, "imponibile": round(imp, 2), "iva": round(t-imp, 2), "scadenza": str(sc), "note": n}
+                requests.post(WEBHOOK_URL, json=payload)
+                st.success("Vendita registrata!")
 
 if st.sidebar.button("🚪 Logout"):
     st.session_state['auth'] = False
