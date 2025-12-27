@@ -1,25 +1,3 @@
-Capisco perfettamente il problema. Il file main.py contiene ancora del testo in italiano che "rompe" il programma. Per farlo funzionare, il file deve contenere esclusivamente il codice Python.
-
-Segui questa guida rapida per pulire tutto e far partire il tuo gestionale.
-
-🛠️ Procedura di Pulizia Totale
-Apri il tuo repository su GitHub.
-
-Apri il file main.py.
-
-Clicca sull'icona della matita (Modifica).
-
-Seleziona tutto il testo presente e cancellalo (il file deve essere completamente vuoto/bianco).
-
-Copia il codice qui sotto e incollalo nel file vuoto.
-
-Sostituisci il link alla riga 11 con il tuo URL di Google.
-
-Clicca sul tasto verde "Commit changes".
-
-📥 Codice da incollare in main.py
-Python
-
 import streamlit as st
 import requests
 import base64
@@ -28,7 +6,7 @@ from datetime import datetime
 # 1. Configurazione Pagina (Deve essere la prima riga assoluta)
 st.set_page_config(page_title="AI Business Dashboard", layout="wide")
 
-# 2. CONFIGURAZIONE LINK GOOGLE (Sostituisci tra le virgolette)
+# 2. CONFIGURAZIONE LINK GOOGLE (Sostituisci tra le virgolette col tuo URL /exec)
 WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_DI_APPS_SCRIPT"
 
 # 3. LISTA UTENTI AUTORIZZATI
@@ -85,7 +63,7 @@ with tab1:
                 API_KEY = st.secrets["API_KEY"]
                 file_bytes = file_acq.read()
                 
-                # Prompt per estrarre tutti i 10 campi del tuo foglio
+                # Prompt per estrarre tutti i campi
                 prompt = "Estrai Soggetto, DataDocumento, Totale, Imponibile, IVA, Scadenza, Articoli. Rispondi SOLO con i valori separati da virgola."
                 
                 if file_acq.name.lower().endswith('.xml'):
