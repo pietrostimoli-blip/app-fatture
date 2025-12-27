@@ -6,7 +6,7 @@ from datetime import datetime
 # 1. Configurazione Pagina (Deve essere la prima riga assoluta)
 st.set_page_config(page_title="AI Business Dashboard", layout="wide")
 
-# 2. CONFIGURAZIONE LINK GOOGLE (Sostituisci tra le virgolette col tuo URL /exec)
+# 2. CONFIGURAZIONE LINK GOOGLE (Incolla qui il tuo URL /exec)
 WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_DI_APPS_SCRIPT"
 
 # 3. LISTA UTENTI AUTORIZZATI
@@ -63,7 +63,6 @@ with tab1:
                 API_KEY = st.secrets["API_KEY"]
                 file_bytes = file_acq.read()
                 
-                # Prompt per estrarre tutti i campi
                 prompt = "Estrai Soggetto, DataDocumento, Totale, Imponibile, IVA, Scadenza, Articoli. Rispondi SOLO con i valori separati da virgola."
                 
                 if file_acq.name.lower().endswith('.xml'):
@@ -76,7 +75,6 @@ with tab1:
                 d = [item.strip() for item in res['candidates'][0]['content']['parts'][0]['text'].split(',')]
                 while len(d) < 7: d.append("N/D")
 
-                # Payload per Google Sheets
                 payload_sheets = {
                     "tipo": "ACQUISTO",
                     "soggetto": d[0],
