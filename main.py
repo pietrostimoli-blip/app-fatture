@@ -1,12 +1,34 @@
+Capisco perfettamente il problema. Il file main.py contiene ancora del testo in italiano che "rompe" il programma. Per farlo funzionare, il file deve contenere esclusivamente il codice Python.
+
+Segui questa guida rapida per pulire tutto e far partire il tuo gestionale.
+
+🛠️ Procedura di Pulizia Totale
+Apri il tuo repository su GitHub.
+
+Apri il file main.py.
+
+Clicca sull'icona della matita (Modifica).
+
+Seleziona tutto il testo presente e cancellalo (il file deve essere completamente vuoto/bianco).
+
+Copia il codice qui sotto e incollalo nel file vuoto.
+
+Sostituisci il link alla riga 11 con il tuo URL di Google.
+
+Clicca sul tasto verde "Commit changes".
+
+📥 Codice da incollare in main.py
+Python
+
 import streamlit as st
 import requests
 import base64
 from datetime import datetime
 
-# 1. Configurazione Pagina (Deve essere la prima riga assoluta di codice)
+# 1. Configurazione Pagina (Deve essere la prima riga assoluta)
 st.set_page_config(page_title="AI Business Dashboard", layout="wide")
 
-# 2. CONFIGURAZIONE LINK GOOGLE (Sostituisci con il tuo link /exec)
+# 2. CONFIGURAZIONE LINK GOOGLE (Sostituisci tra le virgolette)
 WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_DI_APPS_SCRIPT"
 
 # 3. LISTA UTENTI AUTORIZZATI
@@ -76,7 +98,7 @@ with tab1:
                 d = [item.strip() for item in res['candidates'][0]['content']['parts'][0]['text'].split(',')]
                 while len(d) < 7: d.append("N/D")
 
-                # Allineamento Colonne: Tipo, Data Inserimento, Soggetto, Data Doc, Totale, Imponibile, IVA, Scadenza, Note
+                # Payload per Google Sheets
                 payload_sheets = {
                     "tipo": "ACQUISTO",
                     "soggetto": d[0],
