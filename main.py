@@ -9,7 +9,7 @@ st.set_page_config(page_title="AI Business Dashboard", layout="wide")
 # 2. CONFIGURAZIONE LINK GOOGLE (Sostituisci tra le virgolette col tuo URL /exec)
 WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_DI_APPS_SCRIPT"
 
-# 3. LISTA UTENTI AUTORIZZATI
+# 3. LISTA UTENTI AUTORIZZATI (Username: Password)
 UTENTI_AUTORIZZATI = {
     "admin": "12345",
     "ufficio": "2025",
