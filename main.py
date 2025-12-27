@@ -1,18 +1,15 @@
 import streamlit as st
-import google.generativeai as genai
-from PIL import Image
+import requests
+import base64
 
-# FORZIAMO IL MODELLO PRO E LA VERSIONE STABILE
-MODEL_NAME = "gemini-1.5-pro" 
-
-try:
+# CONFIGURAZIONE
+if "API_KEY" in st.secrets:
     API_KEY = st.secrets["API_KEY"]
-    genai.configure(api_key=API_KEY)
-except Exception:
-    st.error("Chiave API non trovata!")
+else:
+    st.error("Inserisci API_KEY nei Secrets!")
     st.stop()
 
-# LOGIN SEMPLIFICATO
+# LOGIN
 UTENTI = {"admin": "tuapassword", "negozio1": "pass123"}
 if 'auth' not in st.session_state: st.session_state['auth'] = False
 
@@ -25,26 +22,41 @@ if st.sidebar.button("Entra"):
         st.rerun()
 
 if not st.session_state['auth']:
-    st.info("Esegui il login a sinistra.")
+    st.info("Esegui il login.")
     st.stop()
 
-# APP PRINCIPALE
-st.title("📑 Scanner Definitivo (Versione Pro)")
+# APP
+st.title("📑 Scanner Definitivo (Versione V1)")
 file = st.file_uploader("Carica Documento", type=['pdf', 'jpg', 'jpeg', 'png'])
 
 if file and st.button("🔍 ANALIZZA ORA"):
     try:
-        with st.spinner("Analisi in corso..."):
-            model = genai.GenerativeModel(MODEL_NAME)
+        with st.spinner("Comunicazione diretta con Google in corso..."):
+            # Prepariamo il file
+            file_data = base64.b64encode(file.read()).decode("utf-8")
+            mime_type = "application/pdf" if file.type == "application/pdf" else "image/jpeg"
             
-            if file.type == "application/pdf":
-                content = [{"mime_type": "application/pdf", "data": file.read()}]
-                res = model.generate_content(["Cosa c'è in questo PDF? Estrai Fornitore, Data e Totale.", content[0]])
+            # URL Forzato alla versione V1 (NON v1beta)
+            url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+            
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": "Estrai Fornitore, Data e Totale da questo documento."},
+                        {"inline_data": {"mime_type": mime_type, "data": file_data}}
+                    ]
+                }]
+            }
+            
+            response = requests.post(url, json=payload)
+            result = response.json()
+            
+            if response.status_code == 200:
+                testo = result['candidates'][0]['content']['parts'][0]['text']
+                st.success("Analisi Completata!")
+                st.write(testo)
             else:
-                img = Image.open(file)
-                res = model.generate_content(["Analizza immagine: Fornitore, Data e Totale.", img])
-            
-            st.success("Dati Estratti:")
-            st.write(res.text)
+                st.error(f"Errore Google: {result['error']['message']}")
+                
     except Exception as e:
         st.error(f"Errore: {e}")
