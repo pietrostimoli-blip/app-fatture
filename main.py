@@ -1,38 +1,70 @@
+Perfetto! Ecco il codice completo per trasformare la tua app in una Dashboard Professionale Dark Style, proprio come nell'immagine.
+
+Ho aggiunto:
+
+Tema Scuro (Dark Mode): Sfondo blu notte e card eleganti.
+
+Grafici: Un grafico a torta che mostra la distribuzione dei costi (Imponibile vs IVA).
+
+Tabella Dettagliata: Una visualizzazione pulita di tutti i dati estratti (niente più JSON brutto da vedere).
+
+Metriche in evidenza: Fornitore, Data e Totale messi in risalto in alto.
+
+🛠️ Codice Completo da copiare in main.py
+Python
+
 import streamlit as st
 import requests
 import base64
+import pandas as pd
+import plotly.graph_objects as go
 
 # --- CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="Scanner Fatture Pro", page_icon="🧾", layout="wide")
+st.set_page_config(page_title="AI Invoice Dashboard", page_icon="📊", layout="wide")
 
-# --- STILE CSS MODERN DASHBOARD ---
+# --- STILE CSS DARK DASHBOARD ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f4f7f6; }
-    .main-card {
-        background: white;
-        padding: 25px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
+    /* Sfondo totale scuro */
+    .stApp {
+        background-color: #0e1117;
+        color: #ffffff;
     }
+    /* Card dei risultati */
+    .metric-card {
+        background-color: #1a1c24;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #30363d;
+        text-align: center;
+    }
+    .metric-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #58a6ff;
+    }
+    .metric-label {
+        font-size: 14px;
+        color: #8b949e;
+    }
+    /* Login Box */
     .login-box {
         max-width: 400px;
         margin: 100px auto;
         padding: 40px;
-        background: white;
+        background: #161b22;
         border-radius: 15px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        border: 1px solid #30363d;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
-    .data-label { color: #555; font-weight: bold; font-size: 0.9em; }
-    .data-value { color: #1e3d59; font-size: 1.1em; margin-bottom: 10px; }
+    /* Bottoni */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
-        height: 3em;
-        background-color: #1e3d59;
+        background-color: #238636;
         color: white;
-        font-weight: bold;
+        border: none;
+        height: 3em;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -44,12 +76,12 @@ else:
     st.error("Manca API_KEY nei Secrets!")
     st.stop()
 
-# --- GESTIONE LOGIN ---
+# --- LOGIN ---
 if 'auth' not in st.session_state: st.session_state['auth'] = False
 
 if not st.session_state['auth']:
     st.markdown('<div class="login-box">', unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center;'>🔐 Cloud Scanner</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: white;'>📊 Dashboard Login</h2>", unsafe_allow_html=True)
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
     if st.button("ACCEDI"):
@@ -57,76 +89,91 @@ if not st.session_state['auth']:
             st.session_state['auth'] = True
             st.session_state['user'] = u
             st.rerun()
-        else: st.error("Credenziali errate")
+        else: st.error("Accesso negato")
     st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 # --- APP PRINCIPALE ---
-st.markdown(f"<p style='text-align: right;'>👤 <b>{st.session_state['user']}</b></p>", unsafe_allow_html=True)
-st.title("📑 Analisi Completa Documento")
+st.title("📊 Dashboard Analisi Fatture AI")
+st.markdown("---")
 
-col_input, col_output = st.columns([1, 1.2])
+# Sidebar per caricamento
+with st.sidebar:
+    st.header("⚙️ Operazioni")
+    file = st.file_uploader("Carica Documento (PDF/JPG)", type=['pdf', 'jpg', 'jpeg', 'png'])
+    if st.button("Esci"):
+        st.session_state['auth'] = False
+        st.rerun()
 
-with col_input:
-    st.markdown('<div class="main-card">', unsafe_allow_html=True)
-    st.subheader("📤 Carica Documento")
-    file = st.file_uploader("PDF o Immagine", type=['pdf', 'jpg', 'jpeg', 'png'])
-    if file:
-        st.success(f"File pronto: {file.name}")
-        btn_analizza = st.button("🔍 AVVIA ESTRAZIONE COMPLETA")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col_output:
-    st.subheader("📋 Dati Documento")
-    if file and btn_analizza:
+if file:
+    if st.button("🔍 AVVIA ANALISI"):
         try:
-            with st.spinner("Estrazione in corso di tutti i dettagli..."):
-                # Bypass errore 404
+            with st.spinner("Analisi intelligente in corso..."):
+                # 1. Recupero modello v1
                 list_url = f"https://generativelanguage.googleapis.com/v1/models?key={API_KEY}"
                 list_res = requests.get(list_url).json()
-                target_model = next((m['name'] for m in list_res.get('models', []) 
-                                   if 'generateContent' in m.get('supportedGenerationMethods', [])), "models/gemini-1.5-flash")
+                target_model = next((m['name'] for m in list_res.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])), "models/gemini-1.5-flash")
 
+                # 2. Preparazione dati
                 file_data = base64.b64encode(file.read()).decode("utf-8")
                 mime_type = "application/pdf" if file.type == "application/pdf" else "image/jpeg"
                 
+                # 3. Prompt per dati strutturati
                 url = f"https://generativelanguage.googleapis.com/v1/{target_model}:generateContent?key={API_KEY}"
                 payload = {
                     "contents": [{
                         "parts": [
-                            {"text": """Analizza questa fattura o scontrino ed estrai OGNI dettaglio:
-                             1. Intestazione (Fornitore, P.IVA, Indirizzo, Telefono)
-                             2. Numero Documento e Data
-                             3. Tabella Prodotti (Descrizione, Quantità, Prezzo Unitario, Totale riga)
-                             4. Totali (Imponibile, IVA per aliquota, Totale complessivo)
-                             5. Metodo di pagamento e IBAN se presenti.
-                             Presenta i dati in modo molto ordinato con titoli chiari."""},
+                            {"text": "Estrai questi dati: Fornitore, Data, Totale, Imponibile, IVA. Rispondi solo con i valori separati da virgola in quest'ordine."},
                             {"inline_data": {"mime_type": mime_type, "data": file_data}}
                         ]
                     }]
                 }
                 
                 response = requests.post(url, json=payload)
-                result = response.json()
-                
-                if response.status_code == 200:
-                    testo_estratto = result['candidates'][0]['content']['parts'][0]['text']
-                    st.markdown('<div class="main-card">', unsafe_allow_html=True)
-                    st.markdown(testo_estratto)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    # Bottone per non perdere i dati
-                    st.download_button("💾 Salva Analisi (Testo)", testo_estratto, file_name=f"analisi_{file.name}.txt")
-                    st.balloons()
-                else:
-                    st.error(f"Errore: {result['error']['message']}")
-        except Exception as e:
-            st.error(f"Errore di sistema: {e}")
-    else:
-        st.info("In attesa di scansione...")
+                raw_text = response.json()['candidates'][0]['content']['parts'][0]['text']
+                dati = [d.strip() for d in raw_text.split(',')]
 
-# Sidebar
-with st.sidebar:
-    if st.button("Esci"):
-        st.session_state['auth'] = False
-        st.rerun()
+                # Visualizzazione Metric Cards
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.markdown(f'<div class="metric-card"><div class="metric-label">🏢 FORNITORE</div><div class="metric-value">{dati[0]}</div></div>', unsafe_allow_html=True)
+                with c2:
+                    st.markdown(f'<div class="metric-card"><div class="metric-label">📅 DATA</div><div class="metric-value">{dati[1]}</div></div>', unsafe_allow_html=True)
+                with c3:
+                    st.markdown(f'<div class="metric-card"><div class="metric-label">💰 TOTALE</div><div class="metric-value">{dati[2]} €</div></div>', unsafe_allow_html=True)
+
+                st.markdown("### 📈 Dettagli e Visualizzazione")
+                
+                col_chart, col_table = st.columns([1, 1.5])
+                
+                # Grafico a torta
+                with col_chart:
+                    try:
+                        imp = float(dati[3].replace('€','').replace(',','.'))
+                        iva = float(dati[4].replace('€','').replace(',','.'))
+                        fig = go.Figure(data=[go.Pie(labels=['Imponibile', 'IVA'], values=[imp, iva], hole=.3, marker_colors=['#58a6ff', '#238636'])])
+                        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", showlegend=True)
+                        st.plotly_chart(fig, use_container_width=True)
+                    except:
+                        st.warning("Dati numerici non sufficienti per il grafico")
+
+                # Tabella Dettagli
+                with col_table:
+                    df = pd.DataFrame({
+                        "Campo": ["Fornitore", "Data", "Imponibile", "IVA", "Totale"],
+                        "Valore": dati
+                    })
+                    st.table(df)
+                
+                st.balloons()
+
+        except Exception as e:
+            st.error(f"Errore: {e}")
+else:
+    st.info("👋 Benvenuto! Carica un file nella barra laterale per iniziare la scansione.")
+
+# --- DASHBOARD BOT AGGIORNATA ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("🤖 Stato Bot")
+st.sidebar.write("**Valore:** 13,82 USDT")
+st.sidebar.write("**Diff:** -619,84 USDT")
