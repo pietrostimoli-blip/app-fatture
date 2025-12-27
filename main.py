@@ -2,10 +2,10 @@ import streamlit as st
 import requests
 import base64
 
-st.set_page_config(page_title="Gemini Business AI", layout="wide")
+st.set_page_config(page_title="Gemini Multi-Database", layout="wide")
 
-# METTI QUI IL NUOVO URL CHE HAI APPENA COPIATO
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzxfFiKXTD5gkY_bKeMTYDdGnV_WYY1iA9ZmBaNLO1XZQLpgrXJPFW2vMgXu41jOplG/exec"
+# INCOLLA QUI L'ULTIMO URL COPIATO
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxvo4G1fUpgL8rMdEwobt4OTVQIeCzioU6B5JPjacwBwPJXMjIyYmnM6Zyhub0pfik/exec"
 
 UTENTI = {"admin": "12345", "negozio1": "pass1"}
 
@@ -26,9 +26,8 @@ st.title(f"📊 Dashboard: {st.session_state['user']}")
 up = st.file_uploader("Carica file", type=['pdf', 'jpg', 'png', 'xml'])
 
 if up and st.button("🔍 ANALIZZA E ARCHIVIA"):
-    with st.spinner("Gemini sta lavorando..."):
-        try:
-            # 1. Chiamata a Gemini
+    try:
+        with st.spinner("1. Chiamata a Gemini in corso..."):
             API_KEY = st.secrets["API_KEY"]
             file_bytes = up.read()
             prompt = "Estrai: Soggetto, Data, Totale, Imponibile, IVA, Scadenza, Articoli. Rispondi solo con i valori separati da virgola."
@@ -42,29 +41,29 @@ if up and st.button("🔍 ANALIZZA E ARCHIVIA"):
             res_ai = requests.post(url_ai, json=payload_ai).json()
             
             if 'candidates' in res_ai:
+                st.info("✅ Gemini ha risposto! Invio i dati a Google Sheets...")
                 testo = res_ai['candidates'][0]['content']['parts'][0]['text']
                 d = [i.strip() for i in testo.split(',')]
                 while len(d) < 7: d.append("N/D")
                 
-                # 2. Invio a Google con TIMEOUT per non bloccarsi
                 payload_google = {
                     "utente": st.session_state['user'], "tipo": "ACQUISTO",
                     "soggetto": d[0], "data_doc": d[1], "totale": d[2],
                     "imponibile": d[3], "iva": d[4], "note": d[6]
                 }
                 
-                st.info("AI ha risposto. Invio i dati al foglio...")
-                r = requests.post(WEBHOOK_URL, json=payload_google, timeout=10) # 10 secondi max
+                # INVIO A GOOGLE CON TIMEOUT
+                r = requests.post(WEBHOOK_URL, json=payload_google, timeout=15)
                 
                 if r.status_code == 200:
-                    st.success(f"Archiviato in {st.session_state['user']}!")
+                    st.success(f"🎉 Successo! Dati scritti nel tab '{st.session_state['user']}'")
                     st.balloons()
                 else:
-                    st.error(f"Il foglio Google ha risposto con errore: {r.status_code}")
+                    st.error(f"Errore Google Sheets: {r.status_code}")
             else:
-                st.error("Gemini non ha riconosciuto il file. Controlla la API KEY.")
+                st.error("Errore Gemini: Controlla la tua API KEY nei Secrets.")
                 
-        except requests.exceptions.Timeout:
-            st.error("⏳ Google Sheets ci sta mettendo troppo a rispondere. Controlla se lo script è attivo.")
-        except Exception as e:
-            st.error(f"Errore: {e}")
+    except requests.exceptions.Timeout:
+        st.error("⏳ Timeout: Google Sheets non risponde. Controlla la distribuzione dello script (deve essere 'Chiunque').")
+    except Exception as e:
+        st.error(f"Errore generico: {e}")
