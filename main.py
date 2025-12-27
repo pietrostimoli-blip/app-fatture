@@ -1,7 +1,15 @@
+Capisco perfettamente la frustrazione. L'errore persiste perché la libreria google-generativeai installata sui server di Streamlit sta forzando l'uso di un indirizzo (endpoint) che Google ha rimosso o spostato per il modello Flash.
+
+Proviamo la mossa finale: cambiamo il modello in gemini-1.5-pro (come suggerito dal messaggio di errore stesso) e semplifichiamo al massimo la chiamata. Il modello Pro è più "robusto" e spesso viaggia su canali diversi che non danno questo errore 404.
+
+🛠️ Codice Definitivo "Versione Pro"
+Copia e sostituisci tutto su GitHub. Ho aggiornato il modello e pulito il codice per evitare conflitti.
+
+Python
+
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
-import requests
 
 # 1. CONFIGURAZIONE
 try:
@@ -33,37 +41,33 @@ if not st.session_state['autenticato']:
     st.stop()
 
 # APP LIVE
-st.title("📑 Scanner Multi-Formato")
+st.title("📑 Scanner Fatture & PDF (Versione Pro)")
 file = st.file_uploader("Carica Fattura", type=['pdf', 'jpg', 'jpeg', 'png'])
 
 if file:
-    if st.button("🔍 ANALIZZA ORA"):
+    if st.button("🔍 ANALIZZA DOCUMENTO"):
         try:
-            with st.spinner("Analisi in corso sulla rete stabile Google..."):
-                # Usiamo il modello Flash con la configurazione più compatibile possibile
-                model = genai.GenerativeModel(
-                    model_name="gemini-1.5-flash",
-                )
+            with st.spinner("Analisi in corso con Gemini Pro..."):
+                # PASSIAMO AL MODELLO PRO PER BYPASSARE L'ERRORE 404
+                model = genai.GenerativeModel('gemini-1.5-pro')
                 
                 if file.type == "application/pdf":
-                    documento = {"mime_type": "application/pdf", "data": file.read()}
-                    # Forziamo la chiamata
-                    response = model.generate_content(
-                        ["Estrai Fornitore, Data e Totale da questo PDF.", documento]
-                    )
+                    file_data = file.read()
+                    response = model.generate_content([
+                        "Estrai Fornitore, Data e Totale da questo documento PDF.",
+                        {"mime_type": "application/pdf", "data": file_data}
+                    ])
                 else:
                     img = Image.open(file)
-                    response = model.generate_content(
-                        ["Estrai Fornitore, Data e Totale.", img]
-                    )
+                    response = model.generate_content(["Estrai Fornitore, Data e Totale da questa immagine.", img])
                 
                 st.subheader("Risultato:")
                 if response.text:
                     st.write(response.text)
                     st.balloons()
                 else:
-                    st.warning("L'AI non ha prodotto testo. Verifica il contenuto del file.")
+                    st.warning("L'AI ha analizzato il file ma non ha prodotto testo.")
                     
         except Exception as e:
             st.error(f"Errore tecnico: {e}")
-            st.info("Se l'errore 404 persiste, Google sta bloccando l'accesso v1beta dalla tua area. Proviamo a cambiare il nome del modello in 'gemini-1.5-pro' nel codice.")
+            st.info("Se l'errore 404 persiste anche col modello Pro, è necessario creare un
