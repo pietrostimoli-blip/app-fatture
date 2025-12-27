@@ -1,33 +1,19 @@
-Il NameError che vedi, specialmente se riferito a st.set_page_config, solitamente accade perché il sistema non riconosce il comando st. Questo può succedere per due motivi:
-
-Manca l'importazione: Non c'è la riga import streamlit as st all'inizio del file.
-
-Ordine sbagliato: st.set_page_config deve essere assolutamente la prima istruzione Streamlit che il codice esegue.
-
-Ho pulito il codice, sistemato il supporto per le JPEG e le Fatture Elettroniche (XML), e rimosso ogni riferimento ai bot.
-
-🛠️ Codice Completo Definitivo (Copia tutto)
-Assicurati di incollare il tuo URL di Apps Script dove vedi WEBHOOK_URL.
-
-Python
-
 import streamlit as st
 import requests
 import base64
 from datetime import datetime
 
-# 1. QUESTA DEVE ESSERE LA PRIMA RIGA DI CODICE STREAMLIT
+# 1. Deve essere la PRIMISSIMA riga di codice Streamlit
 st.set_page_config(page_title="Gestionale AI Universale", layout="wide")
 
-# 2. CONFIGURAZIONE WEBHOOK (Il tuo link di Google Apps Script)
-# Incolla qui il link che finisce con /exec
+# 2. CONFIGURAZIONE WEBHOOK (Incolla il tuo link che finisce con /exec)
 WEBHOOK_URL = "INCOLLA_QUI_IL_TUO_URL_DI_APPS_SCRIPT"
 
-# --- STILE GRAFICO ---
+# --- STILE GRAFICO DASHBOARD ---
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117; color: #e6edf3; }
-    .metric-card { background: #1c2128; border: 1px solid #30363d; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
+    .main-card { background: #1c2128; border: 1px solid #30363d; padding: 20px; border-radius: 12px; }
     .stButton>button { background-color: #238636; color: white; width: 100%; border-radius: 8px; font-weight: bold; height: 3em; }
     </style>
     """, unsafe_allow_html=True)
@@ -72,14 +58,13 @@ if file:
                 # LOGICA PER FATTURA ELETTRONICA (XML)
                 if file.name.lower().endswith('.xml'):
                     content = file_bytes.decode("utf-8")
-                    prompt_text = f"Analizza questo XML di fattura elettronica. Estrai: Fornitore, Data, Totale, Imponibile, IVA, Note. Rispondi SOLO con i valori separati da virgola:\n\n{content}"
+                    prompt_text = f"Analizza questo XML. Estrai: Fornitore, Data, Totale, Imponibile, IVA, Note. Rispondi SOLO con i valori separati da virgola:\n\n{content}"
                     payload_ai = {
                         "contents": [{"parts": [{"text": prompt_text}]}]
                     }
                 # LOGICA PER IMMAGINI E PDF
                 else:
                     file_b64 = base64.b64encode(file_bytes).decode("utf-8")
-                    # Gestione dinamica del tipo MIME per JPEG/JPG/PNG/PDF
                     mime_type = file.type
                     payload_ai = {
                         "contents": [{
@@ -97,18 +82,12 @@ if file:
                 if 'candidates' in res_ai:
                     testo_estratto = res_ai['candidates'][0]['content']['parts'][0]['text']
                     d = [item.strip() for item in testo_estratto.split(',')]
-                    
-                    # Assicuriamoci che ci siano tutti i campi
                     while len(d) < 6: d.append("0")
                     
                     # 2. Invio dati a Google Sheets
                     dati_per_sheets = {
-                        "fornitore": d[0],
-                        "data_fattura": d[1],
-                        "totale": d[2],
-                        "imponibile": d[3],
-                        "iva": d[4],
-                        "note": d[5]
+                        "fornitore": d[0], "data_fattura": d[1], "totale": d[2],
+                        "imponibile": d[3], "iva": d[4], "note": d[5]
                     }
                     
                     response_sheets = requests.post(WEBHOOK_URL, json=dati_per_sheets)
@@ -117,19 +96,19 @@ if file:
                         st.success("✅ Salvataggio completato su Google Sheets!")
                         st.balloons()
                         st.markdown(f"""
-                        <div class="metric-card">
+                        <div style="background:#1c2128; padding:15px; border-radius:10px; border:1px solid #30363d;">
                             <b>Fornitore:</b> {d[0]}<br>
                             <b>Totale:</b> {d[2]} €<br>
                             <b>Data:</b> {d[1]}
                         </div>
                         """, unsafe_allow_html=True)
                     else:
-                        st.error(f"Errore di scrittura (Codice: {response_sheets.status_code}). Verifica l'URL del Webhook.")
+                        st.error(f"Errore scrittura Sheets (Codice: {response_sheets.status_code})")
                 else:
-                    st.error("L'AI non ha risposto correttamente. Verifica la chiarezza del file.")
+                    st.error("L'AI non ha risposto correttamente. Verifica il file.")
                     
         except Exception as e:
             st.error(f"Errore tecnico: {e}")
 
 st.markdown("---")
-st.markdown(f"🔗 [Vai al tuo Database Google Sheets](https://docs.google.com/spreadsheets
+st.markdown(f"🔗 [Apri il tuo Database Google Sheets](https://docs.google.com/spreadsheets/d/13YmESjh6YHVENUwAX1VQPdKPOOULHwv1HU_Y7jOBGn4)")
