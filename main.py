@@ -41,27 +41,29 @@ if not st.session_state['autenticato']:
 
 # --- APP LIVE ---
 st.title("📑 Scanner Fatture & PDF")
-st.write(f"Utente: **{st.session_state['user_attuale'].capitalize()}**")
 
-# AGGIUNTO 'pdf' qui sotto
-file = st.file_uploader("Carica Fattura (Immagine o PDF)", type=['jpg', 'jpeg', 'png', 'pdf'])
+# QUESTA RIGA È QUELLA CHE ABILITA IL PDF
+file = st.file_uploader("Carica Fattura", type=['pdf', 'jpg', 'jpeg', 'png'])
 
 if file:
-    st.success(f"File '{file.name}' caricato con successo!")
+    st.success(f"File caricato: {file.name}")
     
     if st.button("🔍 ANALIZZA DOCUMENTO"):
         try:
             with st.spinner("L'intelligenza artificiale sta leggendo il file..."):
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 
-                # Se è un'immagine la apriamo normalmente
-                if file.type != "application/pdf":
-                    img = Image.open(file)
-                    response = model.generate_content(["Estrai: Fornitore, Data e Totale.", img])
+                if file.type == "application/pdf":
+                    # Lettura specifica per PDF
+                    file_data = file.read()
+                    response = model.generate_content([
+                        "Estrai Fornitore, Data e Totale da questo PDF.",
+                        {"mime_type": "application/pdf", "data": file_data}
+                    ])
                 else:
-                    # Se è un PDF lo inviamo come dati raw (Gemini 1.5 Flash lo supporta)
-                    pdf_parts = [{"mime_type": "application/pdf", "data": file.read()}]
-                    response = model.generate_content(["Estrai: Fornitore, Data e Totale da questo PDF.", pdf_parts[0]])
+                    # Lettura per Immagini
+                    img = Image.open(file)
+                    response = model.generate_content(["Estrai Fornitore, Data e Totale.", img])
                 
                 st.subheader("Dati Estratti:")
                 st.write(response.text)
